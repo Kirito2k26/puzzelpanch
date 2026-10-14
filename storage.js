@@ -1,0 +1,1 @@
+window.PPStorage={get(k,f=null){try{let v=localStorage.getItem('pp:'+k);return v===null?f:JSON.parse(v)}catch{return f}},set(k,v){try{localStorage.setItem('pp:'+k,JSON.stringify(v))}catch{}},best(k,v,lower=false){let old=this.get('best:'+k,null);if(old===null||(lower?v<old:v>old)){this.set('best:'+k,v);return v}return old}};

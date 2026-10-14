@@ -1,0 +1,1 @@
+window.PPUtils={shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a},formatTime(s){return Math.floor(s/60).toString().padStart(2,'0')+':'+(s%60).toString().padStart(2,'0')},choice(a){return a[Math.floor(Math.random()*a.length)]}};
