@@ -5,7 +5,41 @@ PPGames.ludo={init(ctx){
  const lanes=[Array.from({length:6},(_,i)=>[7,i+1]),Array.from({length:6},(_,i)=>[i+1,7]),Array.from({length:6},(_,i)=>[7,13-i]),Array.from({length:6},(_,i)=>[13-i,7])];
  const corners=[[0,0],[0,9],[9,9],[9,0]];
  let s=ctx.restore();if(!s||!Array.isArray(s.tokens)||s.tokens.some(t=>!Array.isArray(t)||t.length!==4))s=fresh(2);
- function fresh(n){return {players:n,tokens:Array.from({length:n},()=>[-1,-1,-1,-1]),turn:0,roll:0,done:false}}
+ s.types=Array.isArray(s.types)&&s.types.length===s.players?s.types:Array(s.players).fill('human');
+ let aiTimer=null;
+ function fresh(n,types){return {players:n,types:types||Array(n).fill('human'),tokens:Array.from({length:n},()=>[-1,-1,-1,-1]),turn:0,roll:0,done:false}}
+ function name(p){return 'Player '+(p+1)+(s.types[p]==='computer'?' (Computer)':' (Human)')}
+ function started(){return s.tokens.some(a=>a.some(v=>v!==-1))||!!s.roll}
+ function roll(){
+  if(ctx.paused||s.done||s.roll)return;
+  const p=s.turn;s.roll=1+Math.floor(Math.random()*6);
+  ctx.message(name(p)+' rolled '+s.roll);
+  if(!options(p,s.roll).length){ctx.message(name(p)+' rolled '+s.roll+' — no legal moves');s.roll=0;s.turn=(p+1)%s.players}
+  save();render();
+ }
+ function aiChoice(p,d){
+  return options(p,d).map(i=>{
+   const old=s.tokens[p][i],v=old===-1?0:old+d;
+   let score=v===57?1000:old===-1?65:10+v*.35;
+   if(v<51){const cell=(starts[p]+v)%52;
+    if(safe.has(cell))score+=12;
+    else for(let op=0;op<s.players;op++)if(op!==p)for(let j=0;j<4;j++){
+     const ov=s.tokens[op][j];if(ov>=0&&ov<51&&(starts[op]+ov)%52===cell)score+=150;
+    }
+   }
+   return {i,score:score+Math.random()*8};
+  }).sort((a,b)=>b.score-a.score)[0]?.i;
+ }
+ function scheduleAI(){
+  clearTimeout(aiTimer);
+  if(!ctx.active()||s.done||s.types[s.turn]!=='computer')return;
+  aiTimer=setTimeout(()=>{
+   if(!ctx.active()||s.done)return;
+   if(ctx.paused){scheduleAI();return}
+   if(!s.roll)roll();
+   else {const i=aiChoice(s.turn,s.roll);if(i!==undefined)move(i)}
+  },700);
+ }
  function save(){ctx.save(s)}
  function options(p,d){return s.tokens[p].map((v,i)=>v===-1?(d===6?i:-1):(v<57&&v+d<=57?i:-1)).filter(i=>i>=0)}
  function position(p,v,i){if(v<0){const [r,c]=corners[p];return [r+1+Math.floor(i/2)*2,c+1+(i%2)*2]}if(v===57)return [7,7];if(v>=51)return lanes[p][v-51];return ring[(starts[p]+v)%52]}
@@ -14,7 +48,7 @@ PPGames.ludo={init(ctx){
   if(v<51){const cell=(starts[p]+v)%52;if(!safe.has(cell))for(let op=0;op<s.players;op++)if(op!==p)for(let j=0;j<4;j++){
    const ov=s.tokens[op][j];if(ov>=0&&ov<51&&(starts[op]+ov)%52===cell){s.tokens[op][j]=-1;captured=true}
   }}
-  if(s.tokens[p].every(x=>x===57)){s.done=true;ctx.win('Player '+(p+1)+' wins!')}
+  if(s.tokens[p].every(x=>x===57)){s.done=true;ctx.win(name(p)+' wins!')}
   const extra=s.roll===6||captured;s.roll=0;if(!extra&&!s.done)s.turn=(p+1)%s.players;
   ctx.message(captured?'Captured an opponent token!':v===57?'Token reached home!':'Token moved.');ctx.sound('button');save();render();
  }
@@ -37,16 +71,32 @@ PPGames.ludo={init(ctx){
    const token=document.createElement('button');token.className='ludo-piece '+colors[p];token.textContent=v===57?'★':'●';
    token.style.left=`${(c+.5+(pile.length>1?(j%2-.5)*.28:0))/15*100}%`;
    token.style.top=`${(r+.5+(pile.length>2?(Math.floor(j/2)-.5)*.28:0))/15*100}%`;
-   token.title='Player '+(p+1)+' token '+(i+1)+(v<0?' (home)':v===57?' (finished)':' (step '+v+')');
-   const enabled=p===s.turn&&s.roll&&options(p,s.roll).includes(i)&&!ctx.paused&&!s.done;
+   token.title=name(p)+' token '+(i+1)+(v<0?' (home)':v===57?' (finished)':' (step '+v+')');
+   const enabled=p===s.turn&&s.types[p]==='human'&&s.roll&&options(p,s.roll).includes(i)&&!ctx.paused&&!s.done;
    token.disabled=!enabled;if(enabled)token.classList.add('can-move');token.onclick=()=>move(i);board.append(token);
   });ctx.board.append(board);
-  ctx.stats.textContent='Player '+(s.turn+1)+' ('+colors[s.turn]+') to play'+(s.roll?' · Rolled '+s.roll:'');ctx.controls.innerHTML='';
-  const sel=document.createElement('select');[2,3,4].forEach(n=>sel.add(new Option(n+' players',n)));sel.value=s.players;sel.disabled=s.tokens.some(a=>a.some(v=>v!==-1));
+  ctx.stats.textContent=name(s.turn)+' ('+colors[s.turn]+') to play'+(s.roll?' · Rolled '+s.roll:'');ctx.controls.innerHTML='';
+  const sel=document.createElement('select');[2,3,4].forEach(n=>sel.add(new Option(n+' players',n)));sel.value=s.players;sel.disabled=started();
   sel.onchange=()=>{s=fresh(+sel.value);save();render()};const label=document.createElement('label');label.textContent='Players: ';label.append(sel);ctx.controls.append(label);
-  const btn=document.createElement('button');btn.className='primary';btn.textContent=s.roll?'Select a glowing token':'🎲 Roll dice';btn.disabled=!!s.roll||s.done;
-  btn.onclick=()=>{if(ctx.paused)return;s.roll=1+Math.floor(Math.random()*6);ctx.message('Player '+(s.turn+1)+' rolled '+s.roll);
-   if(!options(s.turn,s.roll).length){ctx.message('Rolled '+s.roll+' — no legal moves');s.roll=0;s.turn=(s.turn+1)%s.players}save();render()};ctx.controls.append(btn);
+  const setup=document.createElement('div');setup.className='ai-seat-setup';
+  for(let p=0;p<s.players;p++){
+   const seat=document.createElement('label');seat.className='ai-seat';
+   const nameTag=document.createElement('span');nameTag.textContent='Player '+(p+1)+' ('+colors[p]+')';
+   const type=document.createElement('select');type.setAttribute('aria-label','Player '+(p+1)+' type');
+   type.add(new Option('Human','human'));type.add(new Option('Computer','computer'));
+   type.value=s.types[p];type.disabled=started();
+   type.onchange=()=>{s.types[p]=type.value;save();render()};
+   seat.append(nameTag,type);setup.append(seat);
+  }
+  ctx.controls.append(setup);
+  const btn=document.createElement('button');btn.className='primary';
+  btn.textContent=s.roll?'Select a glowing token':'🎲 Roll dice';
+  btn.disabled=!!s.roll||s.done||s.types[s.turn]==='computer';
+  btn.onclick=roll;ctx.controls.append(btn);
+  if(s.types[s.turn]==='computer'&&!s.done){
+   const waiting=document.createElement('span');waiting.className='ai-waiting';waiting.textContent='🤖 '+name(s.turn)+' is thinking…';ctx.controls.append(waiting);
+  }
+  scheduleAI();
   const tip=document.createElement('p');tip.className='tip';tip.textContent='Traditional cross-shaped Ludo board. Roll 6 to enter; choose a glowing token. Safe squares protect tokens. Reach the center with an exact roll.';ctx.controls.append(tip);
- }render();
+ }render();return ()=>clearTimeout(aiTimer);
 }};

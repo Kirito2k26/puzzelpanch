@@ -37,3 +37,7 @@ The PuzzlePanch logo appears in the homepage hero. A matching icon appears in th
 
 ### Tic-Tac-Toe friend mode fix
 Local two-player mode now alternates X and O correctly. Regression test: `node tests/tictactoe.test.js` (Node is only needed for this optional test, not for gameplay). Offline cache version updated.
+
+
+## Human and computer players (Ludo and Snakes & Ladders)
+Choose 2, 3, or 4 players, then assign each seat independently to Human or Computer before the game starts. Any combination is supported, including all-human or all-computer matches. The computer takes its turn automatically; Ludo computer players select tokens based on progress, captures, and safety. To change the lineup after play begins, choose New Game or Restart.
