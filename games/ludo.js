@@ -6,8 +6,9 @@ PPGames.ludo={init(ctx){
  const corners=[[0,0],[0,9],[9,9],[9,0]];
  let s=ctx.restore();if(!s||!Array.isArray(s.tokens)||s.tokens.some(t=>!Array.isArray(t)||t.length!==4))s=fresh(2);
  s.types=Array.isArray(s.types)&&s.types.length===s.players?s.types:Array(s.players).fill('human');
+ s.mode=s.players===4&&s.mode==='team'?'team':'individual';
  let aiTimer=null;
- function fresh(n,types){return {players:n,types:types||Array(n).fill('human'),tokens:Array.from({length:n},()=>[-1,-1,-1,-1]),turn:0,roll:0,done:false}}
+ function fresh(n,types,mode='individual'){return {players:n,mode,types:types||Array(n).fill('human'),tokens:Array.from({length:n},()=>[-1,-1,-1,-1]),turn:0,roll:0,done:false}}
  function name(p){return 'Player '+(p+1)+(s.types[p]==='computer'?' (Computer)':' (Human)')}
  function started(){return s.tokens.some(a=>a.some(v=>v!==-1))||!!s.roll}
  function roll(){
@@ -24,7 +25,7 @@ PPGames.ludo={init(ctx){
    if(v<51){const cell=(starts[p]+v)%52;
     if(safe.has(cell))score+=12;
     else for(let op=0;op<s.players;op++)if(op!==p)for(let j=0;j<4;j++){
-     const ov=s.tokens[op][j];if(ov>=0&&ov<51&&(starts[op]+ov)%52===cell)score+=150;
+     const ov=s.tokens[op][j];if(!(s.mode==='team'&&s.players===4&&op%2===p%2)&&ov>=0&&ov<51&&(starts[op]+ov)%52===cell)score+=150;
     }
    }
    return {i,score:score+Math.random()*8};
@@ -46,9 +47,9 @@ PPGames.ludo={init(ctx){
  function move(i){if(ctx.paused||s.done||!s.roll||!options(s.turn,s.roll).includes(i))return;
   const p=s.turn,old=s.tokens[p][i],v=old===-1?0:old+s.roll;s.tokens[p][i]=v;let captured=false;
   if(v<51){const cell=(starts[p]+v)%52;if(!safe.has(cell))for(let op=0;op<s.players;op++)if(op!==p)for(let j=0;j<4;j++){
-   const ov=s.tokens[op][j];if(ov>=0&&ov<51&&(starts[op]+ov)%52===cell){s.tokens[op][j]=-1;captured=true}
+   const ov=s.tokens[op][j];if(!(s.mode==='team'&&s.players===4&&op%2===p%2)&&ov>=0&&ov<51&&(starts[op]+ov)%52===cell){s.tokens[op][j]=-1;captured=true}
   }}
-  if(s.tokens[p].every(x=>x===57)){s.done=true;ctx.win(name(p)+' wins!')}
+  if(s.mode==='team'&&s.players===4?s.tokens.every((a,k)=>k%2!==p%2||a.every(x=>x===57)):s.tokens[p].every(x=>x===57)){s.done=true;ctx.win(s.mode==='team'?'Team '+(p%2===0?'A (Red + Yellow)':'B (Blue + Green)')+' wins!':name(p)+' wins!')}
   const extra=s.roll===6||captured;s.roll=0;if(!extra&&!s.done)s.turn=(p+1)%s.players;
   ctx.message(captured?'Captured an opponent token!':v===57?'Token reached home!':'Token moved.');ctx.sound('button');save();render();
  }
@@ -75,9 +76,10 @@ PPGames.ludo={init(ctx){
    const enabled=p===s.turn&&s.types[p]==='human'&&s.roll&&options(p,s.roll).includes(i)&&!ctx.paused&&!s.done;
    token.disabled=!enabled;if(enabled)token.classList.add('can-move');token.onclick=()=>move(i);board.append(token);
   });ctx.board.append(board);
-  ctx.stats.textContent=name(s.turn)+' ('+colors[s.turn]+') to play'+(s.roll?' · Rolled '+s.roll:'');ctx.controls.innerHTML='';
+  ctx.stats.textContent=(s.mode==='team'?'Team '+(s.turn%2===0?'A':'B')+' · ':'')+name(s.turn)+' ('+colors[s.turn]+') to play'+(s.roll?' · Rolled '+s.roll:'');ctx.controls.innerHTML='';
   const sel=document.createElement('select');[2,3,4].forEach(n=>sel.add(new Option(n+' players',n)));sel.value=s.players;sel.disabled=started();
-  sel.onchange=()=>{s=fresh(+sel.value);save();render()};const label=document.createElement('label');label.textContent='Players: ';label.append(sel);ctx.controls.append(label);
+  sel.onchange=()=>{s=fresh(+sel.value,undefined,+sel.value===4?s.mode:'individual');save();render()};const label=document.createElement('label');label.textContent='Players: ';label.append(sel);ctx.controls.append(label);
+  if(s.players===4){const ml=document.createElement('label');ml.textContent='Match type: ';const ms=document.createElement('select');ms.add(new Option('Individual · 4 players','individual'));ms.add(new Option('Teams · Red + Yellow vs Blue + Green','team'));ms.value=s.mode;ms.disabled=started();ms.onchange=()=>{s=fresh(4,s.types.slice(),ms.value);save();render()};ml.append(ms);ctx.controls.append(ml)}
   const setup=document.createElement('div');setup.className='ai-seat-setup';
   for(let p=0;p<s.players;p++){
    const seat=document.createElement('label');seat.className='ai-seat';

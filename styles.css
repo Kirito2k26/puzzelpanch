@@ -53,3 +53,9 @@
 .ai-seat{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid rgba(120,120,120,.3);border-radius:10px;background:rgba(130,130,130,.06)}
 .ai-seat select{min-width:110px;max-width:160px}
 .ai-waiting{font-weight:600;opacity:.8}
+
+/* Carrom */
+.game-card.carrom{background:linear-gradient(145deg,#fff0d6,#f4d7a7)}
+.carrom-wrap{width:min(100%,660px);margin:auto}
+.carrom-canvas{width:100%;height:auto;aspect-ratio:1;display:block;border-radius:14px;touch-action:none;cursor:crosshair;box-shadow:0 8px 25px #0002}
+.carrom-settings{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}.carrom-settings label{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.carrom-settings select{max-width:100%;padding:7px;border-radius:7px}

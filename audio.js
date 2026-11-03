@@ -1,6 +1,6 @@
 // Kenney Interface Sounds (CC0): https://kenney.nl/assets/interface-sounds
 (function(){'use strict';
-const files={'button':'assets/sounds/click_002.ogg','move':'assets/sounds/switch_002.ogg','merge':'assets/sounds/confirmation_002.ogg','flip':'assets/sounds/open_002.ogg','match':'assets/sounds/confirmation_003.ogg','mismatch':'assets/sounds/error_001.ogg','number':'assets/sounds/tick_001.ogg','markX':'assets/sounds/select_002.ogg','markO':'assets/sounds/select_005.ogg','win':'assets/sounds/confirmation_004.ogg','lose':'assets/sounds/error_004.ogg','draw':'assets/sounds/bong_001.ogg'};
+const files={'button':'assets/sounds/click_002.ogg','move':'assets/sounds/switch_002.ogg','merge':'assets/sounds/confirmation_002.ogg','flip':'assets/sounds/open_002.ogg','match':'assets/sounds/confirmation_003.ogg','mismatch':'assets/sounds/error_001.ogg','number':'assets/sounds/tick_001.ogg','markX':'assets/sounds/select_002.ogg','markO':'assets/sounds/select_005.ogg','win':'assets/sounds/confirmation_004.ogg','lose':'assets/sounds/error_004.ogg','draw':'assets/sounds/bong_001.ogg','carrom-strike':'assets/sounds/carrom_strike.wav','carrom-collision':'assets/sounds/carrom_collision.wav','carrom-wall':'assets/sounds/carrom_wall.wav','carrom-pocket':'assets/sounds/carrom_pocket.wav','carrom-queen':'assets/sounds/carrom_queen.wav','carrom-cover':'assets/sounds/carrom_cover.wav','carrom-foul':'assets/sounds/carrom_foul.wav','carrom-round':'assets/sounds/carrom_round.wav'};
 const pool={};
 window.PPAudio={muted:PPStorage.get('muted',false),
  play(effect='button'){
