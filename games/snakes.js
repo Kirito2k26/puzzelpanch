@@ -4,19 +4,32 @@ PPGames.snakes={init(ctx){
  const colors=['#e83e58','#3288e8','#16a86b','#e5a300'];
  let s=ctx.restore();if(!s||!Array.isArray(s.pos))s=fresh(2);
  s.types=Array.isArray(s.types)&&s.types.length===s.players?s.types:Array(s.players).fill('human');
- let aiTimer=null;
+ let aiTimer=null,moveTimer=null,moving=false;
  function fresh(n,types){return {pos:Array(n).fill(0),turn:0,players:n,done:false,types:types||Array(n).fill('human')}}
  function name(p){return 'Player '+(p+1)+(s.types[p]==='computer'?' (Computer)':' (Human)')}
  function scheduleAI(){clearTimeout(aiTimer);
-  if(!ctx.active()||s.done||s.types[s.turn]!=='computer')return;
+  if(!ctx.active()||s.done||moving||s.types[s.turn]!=='computer')return;
   aiTimer=setTimeout(()=>{if(!ctx.active()||s.done)return;if(ctx.paused){scheduleAI();return}roll()},750);
  }
  function roll(){
-  if(ctx.paused||s.done)return;
-  const d=1+Math.floor(Math.random()*6),p=s.turn;let v=s.pos[p],msg=name(p)+' rolled '+d;
-  if(v+d<=100){v+=d;if(jumps[v]){msg+=jumps[v]>v?' — climbed a ladder!':' — slid down a snake!';v=jumps[v]}s.pos[p]=v}else msg+=' — exact roll needed';
-  if(v===100){s.done=true;msg+=' — wins!';ctx.win(name(p)+' wins!')}else s.turn=(s.turn+1)%s.players;
-  ctx.message(msg);ctx.sound('button');save();render();
+  if(ctx.paused||s.done||moving)return;
+  const d=1+Math.floor(Math.random()*6),p=s.turn,origin=s.pos[p];let msg=name(p)+' rolled '+d;
+  if(origin+d>100){ctx.message(msg+' — exact roll needed');s.turn=(p+1)%s.players;save();render();return}
+  moving=true;clearTimeout(aiTimer);let step=0;
+  function advance(){
+   if(!ctx.active()){moving=false;return}
+   if(ctx.paused){moveTimer=setTimeout(advance,100);return}
+   step++;s.pos[p]=origin+step;ctx.sound('move');render();
+   if(step<d){moveTimer=setTimeout(advance,250);return}
+   const landed=s.pos[p],destination=jumps[landed];
+   if(destination){msg+=destination>landed?' — climbed a ladder!':' — slid down a snake!';moveTimer=setTimeout(()=>{if(ctx.paused){moveTimer=setTimeout(()=>complete(destination),100);return}complete(destination)},350)}
+   else complete(landed);
+  }
+  function complete(v){if(ctx.paused){moveTimer=setTimeout(()=>complete(v),100);return}
+   s.pos[p]=v;if(v===100){s.done=true;msg+=' — wins!';ctx.win(name(p)+' wins!')}else s.turn=(s.turn+1)%s.players;
+   moving=false;ctx.message(msg);ctx.sound('button');save();render();
+  }
+  advance();
  }
  const xy=n=>{const row=Math.floor((n-1)/10),col=row%2===0?(n-1)%10:9-(n-1)%10;return [(col+.5)*10,(9-row+.5)*10]};
  function save(){ctx.save(s)}
@@ -43,7 +56,7 @@ PPGames.snakes={init(ctx){
     for(const dx of [-.5,.5])svg.append(el('circle',{cx:x1+dx,cy:y1-.4,r:'.2',fill:'#fff'}));
    }
   });wrap.append(svg);ctx.board.append(wrap);
-  ctx.stats.textContent='Turn: '+name(s.turn)+' · '+s.pos.map((v,i)=>'P'+(i+1)+': '+v).join(' · ');ctx.controls.innerHTML='';
+  ctx.stats.textContent='Turn: '+name(s.turn)+' · '+s.pos.map((v,i)=>['Red','Blue','Green','Yellow'][i]+': '+v).join(' · ');ctx.controls.innerHTML='';
   const started=s.pos.some(Boolean);
   const select=document.createElement('select');[2,3,4].forEach(n=>select.add(new Option(n+' players',n)));select.value=s.players;select.disabled=started;
   select.onchange=()=>{s=fresh(+select.value);save();render()};
@@ -51,7 +64,7 @@ PPGames.snakes={init(ctx){
   const setup=document.createElement('div');setup.className='ai-seat-setup';
   for(let p=0;p<s.players;p++){
    const seat=document.createElement('label');seat.className='ai-seat';
-   const nameTag=document.createElement('span');nameTag.textContent='Player '+(p+1);
+   const nameTag=document.createElement('span');nameTag.textContent=['Red','Blue','Green','Yellow'][p]+' player';
    const type=document.createElement('select');type.setAttribute('aria-label','Player '+(p+1)+' type');
    type.add(new Option('Human','human'));type.add(new Option('Computer','computer'));
    type.value=s.types[p];type.disabled=started;
@@ -60,9 +73,9 @@ PPGames.snakes={init(ctx){
   }
   ctx.controls.append(setup);
   const btn=document.createElement('button');btn.className='primary';btn.textContent='🎲 Roll dice';
-  btn.disabled=s.done||s.types[s.turn]==='computer';btn.onclick=roll;ctx.controls.append(btn);
+  btn.disabled=s.done||moving||s.types[s.turn]==='computer';btn.onclick=roll;ctx.controls.append(btn);
   if(s.types[s.turn]==='computer'&&!s.done){const waiting=document.createElement('span');waiting.className='ai-waiting';waiting.textContent='🤖 '+name(s.turn)+' is rolling…';ctx.controls.append(waiting)}
-  scheduleAI();
+  if(!moving)scheduleAI();
   const tip=document.createElement('p');tip.className='tip';tip.textContent='🪜 Climb illustrated ladders; 🐍 slide down snakes. Reach 100 with an exact roll.';ctx.controls.append(tip);
- }render();return ()=>clearTimeout(aiTimer);
+ }render();return ()=>{clearTimeout(aiTimer);clearTimeout(moveTimer)};
 }};

@@ -7,16 +7,16 @@ PPGames.ludo={init(ctx){
  let s=ctx.restore();if(!s||!Array.isArray(s.tokens)||s.tokens.some(t=>!Array.isArray(t)||t.length!==4))s=fresh(2);
  s.types=Array.isArray(s.types)&&s.types.length===s.players?s.types:Array(s.players).fill('human');
  s.mode=s.players===4&&s.mode==='team'?'team':'individual';
- let aiTimer=null;
+ let aiTimer=null,moveTimer=null,moving=false;
  function fresh(n,types,mode='individual'){return {players:n,mode,types:types||Array(n).fill('human'),tokens:Array.from({length:n},()=>[-1,-1,-1,-1]),turn:0,roll:0,done:false}}
  function name(p){return 'Player '+(p+1)+(s.types[p]==='computer'?' (Computer)':' (Human)')}
  function started(){return s.tokens.some(a=>a.some(v=>v!==-1))||!!s.roll}
  function roll(){
-  if(ctx.paused||s.done||s.roll)return;
+  if(ctx.paused||s.done||s.roll||moving)return;
   const p=s.turn;s.roll=1+Math.floor(Math.random()*6);
   ctx.message(name(p)+' rolled '+s.roll);
   if(!options(p,s.roll).length){ctx.message(name(p)+' rolled '+s.roll+' — no legal moves');s.roll=0;s.turn=(p+1)%s.players}
-  save();render();
+  save();render();if(s.roll&&options(s.turn,s.roll).length===1)scheduleOnlyMove();
  }
  function aiChoice(p,d){
   return options(p,d).map(i=>{
@@ -33,9 +33,9 @@ PPGames.ludo={init(ctx){
  }
  function scheduleAI(){
   clearTimeout(aiTimer);
-  if(!ctx.active()||s.done||s.types[s.turn]!=='computer')return;
+  if(!ctx.active()||s.done||moving||s.types[s.turn]!=='computer')return;
   aiTimer=setTimeout(()=>{
-   if(!ctx.active()||s.done)return;
+   if(!ctx.active()||s.done||moving)return;
    if(ctx.paused){scheduleAI();return}
    if(!s.roll)roll();
    else {const i=aiChoice(s.turn,s.roll);if(i!==undefined)move(i)}
@@ -44,14 +44,34 @@ PPGames.ludo={init(ctx){
  function save(){ctx.save(s)}
  function options(p,d){return s.tokens[p].map((v,i)=>v===-1?(d===6?i:-1):(v<57&&v+d<=57?i:-1)).filter(i=>i>=0)}
  function position(p,v,i){if(v<0){const [r,c]=corners[p];return [r+1+Math.floor(i/2)*2,c+1+(i%2)*2]}if(v===57)return [7,7];if(v>=51)return lanes[p][v-51];return ring[(starts[p]+v)%52]}
- function move(i){if(ctx.paused||s.done||!s.roll||!options(s.turn,s.roll).includes(i))return;
-  const p=s.turn,old=s.tokens[p][i],v=old===-1?0:old+s.roll;s.tokens[p][i]=v;let captured=false;
-  if(v<51){const cell=(starts[p]+v)%52;if(!safe.has(cell))for(let op=0;op<s.players;op++)if(op!==p)for(let j=0;j<4;j++){
-   const ov=s.tokens[op][j];if(!(s.mode==='team'&&s.players===4&&op%2===p%2)&&ov>=0&&ov<51&&(starts[op]+ov)%52===cell){s.tokens[op][j]=-1;captured=true}
-  }}
-  if(s.mode==='team'&&s.players===4?s.tokens.every((a,k)=>k%2!==p%2||a.every(x=>x===57)):s.tokens[p].every(x=>x===57)){s.done=true;ctx.win(s.mode==='team'?'Team '+(p%2===0?'A (Red + Yellow)':'B (Blue + Green)')+' wins!':name(p)+' wins!')}
-  const extra=s.roll===6||captured;s.roll=0;if(!extra&&!s.done)s.turn=(p+1)%s.players;
-  ctx.message(captured?'Captured an opponent token!':v===57?'Token reached home!':'Token moved.');ctx.sound('button');save();render();
+ function scheduleOnlyMove(){
+  if(moving||!s.roll||s.done||ctx.paused||s.types[s.turn]!=='human')return;
+  const legal=options(s.turn,s.roll);
+  if(legal.length===1){clearTimeout(moveTimer);moveTimer=setTimeout(()=>{if(!ctx.active()||ctx.paused){scheduleOnlyMove();return}if(!moving&&s.roll&&options(s.turn,s.roll).length===1)move(legal[0])},380)}
+ }
+ function move(i){if(ctx.paused||s.done||moving||!s.roll||!options(s.turn,s.roll).includes(i))return;
+  moving=true;clearTimeout(aiTimer);clearTimeout(moveTimer);
+  const p=s.turn,old=s.tokens[p][i],dice=s.roll,steps=old===-1?1:dice;
+  let step=0;
+  function advance(){
+   if(!ctx.active()){moving=false;return}
+   if(ctx.paused){moveTimer=setTimeout(advance,100);return}
+   step++;
+   s.tokens[p][i]=old===-1?0:old+step;
+   ctx.sound('move');render();
+   if(step<steps){moveTimer=setTimeout(advance,250);return}
+   finishMove();
+  }
+  function finishMove(){
+   const v=s.tokens[p][i];let captured=false;
+   if(v<51){const cell=(starts[p]+v)%52;if(!safe.has(cell))for(let op=0;op<s.players;op++)if(op!==p)for(let j=0;j<4;j++){
+    const ov=s.tokens[op][j];if(!(s.mode==='team'&&s.players===4&&op%2===p%2)&&ov>=0&&ov<51&&(starts[op]+ov)%52===cell){s.tokens[op][j]=-1;captured=true}
+   }}
+   if(s.mode==='team'&&s.players===4?s.tokens.every((a,k)=>k%2!==p%2||a.every(x=>x===57)):s.tokens[p].every(x=>x===57)){s.done=true;ctx.win(s.mode==='team'?'Team '+(p%2===0?'A (Red + Yellow)':'B (Blue + Green)')+' wins!':name(p)+' wins!')}
+   const extra=dice===6||captured;s.roll=0;if(!extra&&!s.done)s.turn=(p+1)%s.players;
+   moving=false;ctx.message(captured?'Captured an opponent token!':v===57?'Token reached home!':'Token moved.');ctx.sound('button');save();render();
+  }
+  advance();
  }
  function render(){
   ctx.board.innerHTML='';const board=document.createElement('div');board.className='ludo-board';
@@ -69,11 +89,11 @@ PPGames.ludo={init(ctx){
    const v=s.tokens[p][i],[r,c]=position(p,v,i),id=r+','+c;if(!piles.has(id))piles.set(id,[]);piles.get(id).push({p,i,v,r,c});
   }
   for(const pile of piles.values())pile.forEach(({p,i,v,r,c},j)=>{
-   const token=document.createElement('button');token.className='ludo-piece '+colors[p];token.textContent=v===57?'★':'●';
+   const token=document.createElement('button');token.className='ludo-piece '+colors[p];token.textContent=v===57?'★':'';
    token.style.left=`${(c+.5+(pile.length>1?(j%2-.5)*.28:0))/15*100}%`;
    token.style.top=`${(r+.5+(pile.length>2?(Math.floor(j/2)-.5)*.28:0))/15*100}%`;
    token.title=name(p)+' token '+(i+1)+(v<0?' (home)':v===57?' (finished)':' (step '+v+')');
-   const enabled=p===s.turn&&s.types[p]==='human'&&s.roll&&options(p,s.roll).includes(i)&&!ctx.paused&&!s.done;
+   const enabled=p===s.turn&&s.types[p]==='human'&&s.roll&&options(p,s.roll).includes(i)&&!ctx.paused&&!s.done&&!moving;
    token.disabled=!enabled;if(enabled)token.classList.add('can-move');token.onclick=()=>move(i);board.append(token);
   });ctx.board.append(board);
   ctx.stats.textContent=(s.mode==='team'?'Team '+(s.turn%2===0?'A':'B')+' · ':'')+name(s.turn)+' ('+colors[s.turn]+') to play'+(s.roll?' · Rolled '+s.roll:'');ctx.controls.innerHTML='';
@@ -93,12 +113,12 @@ PPGames.ludo={init(ctx){
   ctx.controls.append(setup);
   const btn=document.createElement('button');btn.className='primary';
   btn.textContent=s.roll?'Select a glowing token':'🎲 Roll dice';
-  btn.disabled=!!s.roll||s.done||s.types[s.turn]==='computer';
+  btn.disabled=!!s.roll||s.done||moving||s.types[s.turn]==='computer';
   btn.onclick=roll;ctx.controls.append(btn);
   if(s.types[s.turn]==='computer'&&!s.done){
    const waiting=document.createElement('span');waiting.className='ai-waiting';waiting.textContent='🤖 '+name(s.turn)+' is thinking…';ctx.controls.append(waiting);
   }
-  scheduleAI();
+  if(!moving)scheduleAI();
   const tip=document.createElement('p');tip.className='tip';tip.textContent='Traditional cross-shaped Ludo board. Roll 6 to enter; choose a glowing token. Safe squares protect tokens. Reach the center with an exact roll.';ctx.controls.append(tip);
- }render();return ()=>clearTimeout(aiTimer);
+ }render();return ()=>{clearTimeout(aiTimer);clearTimeout(moveTimer)};
 }};

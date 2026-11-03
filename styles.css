@@ -59,3 +59,8 @@
 .carrom-wrap{width:min(100%,660px);margin:auto}
 .carrom-canvas{width:100%;height:auto;aspect-ratio:1;display:block;border-radius:14px;touch-action:none;cursor:crosshair;box-shadow:0 8px 25px #0002}
 .carrom-settings{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}.carrom-settings label{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.carrom-settings select{max-width:100%;padding:7px;border-radius:7px}
+
+/* November 2026 gameplay refinements */
+.ludo-piece{transition:left .22s ease-in-out,top .22s ease-in-out;color:transparent}
+.ludo-piece.red{background:#df3044}.ludo-piece.blue{background:#176ed1}.ludo-piece.yellow{background:#e6a900}.ludo-piece.green{background:#139d52}
+.carrom-live-score{padding:12px 14px;border:1px solid #bba88c;border-radius:12px;background:rgba(255,242,208,.28);font-weight:650;line-height:1.6;margin:10px 0}

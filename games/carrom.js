@@ -1,7 +1,7 @@
 window.PPGames=window.PPGames||{};
 PPGames.carrom={init(ctx){
  const W=640,lo=55,hi=585,holes=[[65,65],[575,65],[65,575],[575,575]],R=12,SR=16;
- let timer=null,raf=null,dead=false,aim=null,drag=null,last=0,shot=[],message='';
+ let timer=null,raf=null,dead=false,aim=null,drag=null,last=0,shot=[],message='',scoreNode=null;
  const modes=[['singles','1 vs 1 · Traditional'],['doubles','2 vs 2 · Traditional'],['free','4 players · Individual Free Mode'],['freeTeams','2 vs 2 · Free Teams']];
  let s=ctx.restore();
  if(!s||!modes.some(m=>m[0]===s.mode)||!Array.isArray(s.seats))s=make('singles');
@@ -82,18 +82,19 @@ PPGames.carrom={init(ctx){
   for(const side of [0,1,2,3]){g.save();g.translate(320,320);g.rotate(side*Math.PI/2);g.strokeStyle='#a64e38';g.lineWidth=3;g.beginPath();g.moveTo(-110,192);g.lineTo(110,192);g.moveTo(-110,220);g.lineTo(110,220);g.stroke();g.restore()}
   holes.forEach(([x,y])=>{g.beginPath();g.arc(x,y,23,0,Math.PI*2);g.fillStyle='#30201b';g.fill();g.strokeStyle='#86502b';g.lineWidth=4;g.stroke()});
   for(const c of s.coins){if(!c.alive)continue;g.beginPath();g.arc(c.x,c.y,R,0,Math.PI*2);g.fillStyle=c.kind==='queen'?'#c52d37':c.kind==='white'?'#fff1d6':'#26272c';g.fill();g.lineWidth=2;g.strokeStyle=c.kind==='white'?'#ad9875':'#c6a777';g.stroke();g.beginPath();g.arc(c.x,c.y,7,0,Math.PI*2);g.lineWidth=1;g.stroke()}
+  if(animating&&striker&&striker.alive){g.beginPath();g.arc(striker.x,striker.y,SR,0,Math.PI*2);g.fillStyle='#f9e2aa';g.fill();g.lineWidth=3;g.strokeStyle='#99502e';g.stroke();g.beginPath();g.arc(striker.x,striker.y,9,0,Math.PI*2);g.strokeStyle='#c38c51';g.lineWidth=2;g.stroke()}
   if(!s.done&&s.coins.some(c=>c.alive)&&!animating){const pos=startPos(s.turn,aim?.t??.5);g.beginPath();g.arc(pos.x,pos.y,SR,0,Math.PI*2);g.fillStyle='#f9e2aa';g.fill();g.strokeStyle='#99502e';g.lineWidth=3;g.stroke();if(drag&&s.seats[s.turn]==='human'){const dx=pos.x-drag.x,dy=pos.y-drag.y;g.beginPath();g.moveTo(pos.x,pos.y);g.lineTo(pos.x+dx*1.4,pos.y+dy*1.4);g.strokeStyle='#2d8f7d';g.lineWidth=4;g.stroke()}}
  }
  let animating=false,striker=null,pocketed=[];
  function simulate(dt){const objs=s.coins.filter(c=>c.alive).concat(striker&&striker.alive?[striker]:[]);const step=Math.min(dt,2);
   for(const o of objs){o.x+=o.vx*step;o.y+=o.vy*step;o.vx*=Math.pow(.983,step);o.vy*=Math.pow(.983,step);if(Math.abs(o.vx)<.04)o.vx=0;if(Math.abs(o.vy)<.04)o.vy=0;
-   if(holes.some(([x,y])=>Math.hypot(o.x-x,o.y-y)<20)){o.alive=false;pocketed.push(o===striker?{kind:'striker'}:{kind:o.kind});sound(o===striker?'carrom-foul':o.kind==='queen'?'carrom-queen':'carrom-pocket');continue}
+   if(holes.some(([x,y])=>Math.hypot(o.x-x,o.y-y)<20)){o.alive=false;pocketed.push(o===striker?{kind:'striker'}:{kind:o.kind});updateScores();sound(o===striker?'carrom-foul':o.kind==='queen'?'carrom-queen':'carrom-pocket');continue}
    const r=o===striker?SR:R;for(const axis of ['x','y']){if(o[axis]<lo+r){o[axis]=lo+r;o['v'+axis]=Math.abs(o['v'+axis])*.76;sound('carrom-wall')}if(o[axis]>hi-r){o[axis]=hi-r;o['v'+axis]=-Math.abs(o['v'+axis])*.76;sound('carrom-wall')}}}
   for(let i=0;i<objs.length;i++)for(let j=i+1;j<objs.length;j++){const a=objs[i],b=objs[j];if(!a.alive||!b.alive)continue;const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||.001,min=(a===striker?SR:R)+(b===striker?SR:R);if(d>=min)continue;
    const nx=dx/d,ny=dy/d,over=(min-d)/2;a.x-=nx*over;b.x+=nx*over;a.y-=ny*over;b.y+=ny*over;
    const rel=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;if(rel<0){const impulse=-rel*.88;a.vx-=impulse*nx;a.vy-=impulse*ny;b.vx+=impulse*nx;b.vy+=impulse*ny;if(Math.abs(rel)>1)sound('carrom-collision')}}
   return objs.some(o=>o.alive&&(Math.abs(o.vx)+Math.abs(o.vy)>.1))}
- function animate(ts){if(dead)return;if(ctx.paused){raf=requestAnimationFrame(animate);last=ts;return}const dt=Math.min(2.5,(ts-last)/16.67||1);last=ts;let moving=false;for(let i=0;i<2;i++)moving=simulate(dt/2)||moving;paint();if(moving)raf=requestAnimationFrame(animate);else{animating=false;striker=null;shot=pocketed.slice();pocketed=[];resolveShot();scheduleAI()}}
+ function animate(ts){if(dead)return;if(ctx.paused){raf=requestAnimationFrame(animate);last=ts;return}const dt=Math.min(2.5,(ts-last)/16.67||1);last=ts;let moving=false;for(let i=0;i<2;i++)moving=simulate(dt/2)||moving;paint();updateScores();if(moving)raf=requestAnimationFrame(animate);else{animating=false;shot=pocketed.slice();striker=null;pocketed=[];resolveShot();scheduleAI()}}
  function shoot(x,y,power){if(animating||s.done||ctx.paused)return;const pos=startPos(s.turn,aim?.t??.5);striker={kind:'striker',...pos,vx:x*power,vy:y*power,alive:true};animating=true;pocketed=[];s.shotCount++;sound('carrom-strike');last=performance.now();raf=requestAnimationFrame(animate);render()}
  function point(e){const rect=canvas.getBoundingClientRect();return {x:(e.clientX-rect.left)*640/rect.width,y:(e.clientY-rect.top)*640/rect.height}}
  canvas.addEventListener('pointerdown',e=>{if(animating||s.done||ctx.paused||s.seats[s.turn]!=='human')return;const p=point(e),side=seatSide(s.turn);if(!aim)aim={t:.5};if(side%2===0)aim.t=Math.max(0,Math.min(1,(p.x-210)/220));else aim.t=Math.max(0,Math.min(1,(p.y-210)/220));drag=p;canvas.setPointerCapture(e.pointerId);paint()});
@@ -104,8 +105,21 @@ PPGames.carrom={init(ctx){
   for(let t=0;t<=10;t++){const pos=startPos(p,t/10),dx=target.x-pos.x,dy=target.y-pos.y,dist=Math.hypot(dx,dy);if(!dist)continue;const score=dist+(side%2===0?Math.abs(dx)*.03:Math.abs(dy)*.03);if(!best||score<best.score)best={t:t/10,dx,dy,dist,score}}
   aim={t:best.t};let error=ctx.difficulty==='easy'?.24:ctx.difficulty==='medium'?.10:.025;let angle=Math.atan2(best.dy,best.dx)+(Math.random()-.5)*error;shoot(Math.cos(angle),Math.sin(angle),Math.min(15,Math.max(5,best.dist/35)));}
  function scheduleAI(){clearTimeout(timer);if(dead||s.done||animating||!ctx.active()||s.seats[s.turn]!=='computer')return;timer=setTimeout(aiShot,850)}
+ function updateScores(){
+  if(!scoreNode)return;
+  const pending=Array(s.seats.length).fill(0);
+  if(animating&&!pocketed.some(c=>c.kind==='striker')){
+   for(const c of pocketed){if(c.kind==='queen')continue;
+    if(free()||(owner(s.turn)===0&&c.kind==='white')||(owner(s.turn)===1&&c.kind==='black'))pending[s.turn]+=coinValue(c);
+   }
+  }
+  const names=s.seats.map((_,i)=>'P'+(i+1)+' ('+['Red','Blue','Yellow','Green'][i]+')');
+  const round=teams()?[0,1].map(team=>{let total=0,preview=0;for(let i=team;i<s.seats.length;i+=2){total+=s.winnings[i];preview+=pending[i]}return 'Team '+(team?'B':'A')+': '+total+(preview?' (+'+preview+' pocketed)':'')}).join(' | '):names.map((n,i)=>n+': '+s.winnings[i]+(pending[i]?' (+'+pending[i]+' pocketed)':'')).join(' | ');
+  const balances=free()?(s.mode==='freeTeams'?s.teamBalance.map((v,i)=>'Team '+(i?'B':'A')+': '+v).join(' | '):s.balance.map((v,i)=>'P'+(i+1)+': '+v).join(' | ')):'Not applicable in traditional mode';
+  scoreNode.textContent='Round '+s.round+' points: '+round+' · Championship balances: '+balances;
+ }
  function render(){if(dead)return;paint();ctx.stats.textContent='Round '+s.round+' · '+label(s.turn)+(teams()?' · Team '+(s.turn%2===0?'A':'B'):'')+' · '+(free()?'Balances: '+(s.mode==='freeTeams'?s.teamBalance.map((v,i)=>'Team '+(i?'B':'A')+' '+v).join(' | '):s.balance.map((v,i)=>'P'+(i+1)+' '+v).join(' | ')):'Coins left: '+s.coins.filter(c=>c.alive).length);
-  ctx.controls.innerHTML='';const top=document.createElement('div');top.className='carrom-settings';
+  ctx.controls.innerHTML='';scoreNode=document.createElement('div');scoreNode.className='carrom-live-score';scoreNode.setAttribute('aria-live','polite');ctx.controls.append(scoreNode);updateScores();const top=document.createElement('div');top.className='carrom-settings';
   const ml=document.createElement('label');ml.textContent='Match: ';const ms=document.createElement('select');modes.forEach(([v,n])=>ms.add(new Option(n,v)));ms.value=s.mode;ms.disabled=s.shotCount>0||s.round>1;ms.onchange=()=>{s=make(ms.value);boardSetup();scheduleAI()};ml.append(ms);top.append(ml);
   for(let i=0;i<s.seats.length;i++){const l=document.createElement('label');l.textContent='P'+(i+1)+': ';const select=document.createElement('select');select.add(new Option('Human','human'));select.add(new Option('Computer','computer'));select.value=s.seats[i];select.disabled=s.shotCount>0||s.round>1;select.onchange=()=>{s.seats[i]=select.value;persist();render();scheduleAI()};l.append(select);top.append(l)}ctx.controls.append(top);
   const desc=document.createElement('p');desc.className='tip';desc.textContent=free()?'Free championship: black 10, white 20, queen 50 (cover required). Each active '+(teams()?'team':'player')+' stakes the lowest balance next round. Zero balance means elimination.':'Traditional color rules: '+(teams()?'Team A white, Team B black.':'P1 white, P2 black.')+' Pocket the queen and cover it with your own color.';ctx.controls.append(desc);
