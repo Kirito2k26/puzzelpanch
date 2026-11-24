@@ -1,4 +1,3 @@
 User-agent: *
 Allow: /
-
 Sitemap: https://puzzlepanch.vercel.app/sitemap.xml

@@ -43,7 +43,7 @@ PPGames.ludo={init(ctx){
  }
  function save(){ctx.save(s)}
  function options(p,d){return s.tokens[p].map((v,i)=>v===-1?(d===6?i:-1):(v<57&&v+d<=57?i:-1)).filter(i=>i>=0)}
- function position(p,v,i){if(v<0){const [r,c]=corners[p];return [r+1+Math.floor(i/2)*2,c+1+(i%2)*2]}if(v===57)return [7,7];if(v>=51)return lanes[p][v-51];return ring[(starts[p]+v)%52]}
+ function position(p,v,i){if(v<0){const [r,c]=corners[p];return [r+1.5+Math.floor(i/2)*2,c+1.5+(i%2)*2]}if(v===57)return [[7,6.55],[6.55,7],[7,7.45],[7.45,7]][p];if(v>=51)return lanes[p][v-51];return ring[(starts[p]+v)%52]}
  function scheduleOnlyMove(){
   if(moving||!s.roll||s.done||ctx.paused||s.types[s.turn]!=='human')return;
   const legal=options(s.turn,s.roll);
@@ -68,8 +68,8 @@ PPGames.ludo={init(ctx){
     const ov=s.tokens[op][j];if(!(s.mode==='team'&&s.players===4&&op%2===p%2)&&ov>=0&&ov<51&&(starts[op]+ov)%52===cell){s.tokens[op][j]=-1;captured=true}
    }}
    if(s.mode==='team'&&s.players===4?s.tokens.every((a,k)=>k%2!==p%2||a.every(x=>x===57)):s.tokens[p].every(x=>x===57)){s.done=true;ctx.win(s.mode==='team'?'Team '+(p%2===0?'A (Red + Yellow)':'B (Blue + Green)')+' wins!':name(p)+' wins!')}
-   const extra=dice===6||captured;s.roll=0;if(!extra&&!s.done)s.turn=(p+1)%s.players;
-   moving=false;ctx.message(captured?'Captured an opponent token!':v===57?'Token reached home!':'Token moved.');ctx.sound('button');save();render();
+   const extra=dice===6||captured||v===57;s.roll=0;if(!extra&&!s.done)s.turn=(p+1)%s.players;
+   moving=false;if(!s.done)ctx.message(captured?'Captured an opponent token!':v===57?'Token reached victory! Extra roll.':'Token moved.');ctx.sound('button');save();render();
   }
   advance();
  }
@@ -80,20 +80,25 @@ PPGames.ludo={init(ctx){
    const corner=r<6&&c<6?0:r<6&&c>8?1:r>8&&c>8?2:r>8&&c<6?3:-1;
    if(corner>=0)cell.classList.add('ludo-zone',colors[corner]);
    if(r>=6&&r<=8&&c>=6&&c<=8)cell.classList.add('ludo-center');
-   if(r===7&&c===7)cell.textContent='★';
-   for(let p=0;p<4;p++)if(lanes[p].some(([lr,lc])=>lr===r&&lc===c))cell.classList.add('ludo-lane',colors[p]);
+   
+   for(let p=0;p<4;p++)if(!cell.classList.contains('ludo-center')&&lanes[p].some(([lr,lc])=>lr===r&&lc===c))cell.classList.add('ludo-lane',colors[p]);
    ring.forEach(([rr,cc],idx)=>{if(rr===r&&cc===c){if(safe.has(idx))cell.classList.add('ludo-safe');const owner=starts.indexOf(idx);if(owner>=0)cell.classList.add('ludo-start',colors[owner])}});
    cell.style.gridRow=r+1;cell.style.gridColumn=c+1;board.append(cell);
   }
+  corners.forEach(([r,c],p)=>{
+   const home=document.createElement('div');home.className='ludo-house '+colors[p];home.style.gridRow=`${r+1} / span 6`;home.style.gridColumn=`${c+1} / span 6`;
+   home.innerHTML='<span class="ludo-house-label">HOME</span>'+Array.from({length:4},()=>'<span class="ludo-slot"></span>').join('');board.append(home);
+  });
+  const center=document.createElement('div');center.className='ludo-goal';center.innerHTML='<span>★</span>';board.append(center);
   const piles=new Map();for(let p=0;p<s.players;p++)for(let i=0;i<4;i++){
    const v=s.tokens[p][i],[r,c]=position(p,v,i),id=r+','+c;if(!piles.has(id))piles.set(id,[]);piles.get(id).push({p,i,v,r,c});
   }
   for(const pile of piles.values())pile.forEach(({p,i,v,r,c},j)=>{
-   const token=document.createElement('button');token.className='ludo-piece '+colors[p];token.textContent=v===57?'★':'';
-   token.style.left=`${(c+.5+(pile.length>1?(j%2-.5)*.28:0))/15*100}%`;
-   token.style.top=`${(r+.5+(pile.length>2?(Math.floor(j/2)-.5)*.28:0))/15*100}%`;
-   token.title=name(p)+' token '+(i+1)+(v<0?' (home)':v===57?' (finished)':' (step '+v+')');
-   const enabled=p===s.turn&&s.types[p]==='human'&&s.roll&&options(p,s.roll).includes(i)&&!ctx.paused&&!s.done&&!moving;
+   const token=document.createElement('button');token.className='ludo-piece '+colors[p];token.textContent=v===57?'★':String(i+1);if(v<0)token.classList.add('at-home');if(v===57)token.classList.add('finished');
+   token.style.left=`${(c+.5+(pile.length>1?((j%Math.ceil(Math.sqrt(pile.length)))-(Math.ceil(Math.sqrt(pile.length))-1)/2)*.48:0))/15*100}%`;
+   token.style.top=`${(r+.5+(pile.length>2?(Math.floor(j/Math.ceil(Math.sqrt(pile.length)))-(Math.ceil(pile.length/Math.ceil(Math.sqrt(pile.length)))-1)/2)*.48:0))/15*100}%`;
+   if(pile.length>1)token.classList.add('stacked');token.title=name(p)+' token '+(i+1)+(v<0?' (home)':v===57?' (finished)':' (step '+v+')');
+   token.setAttribute('aria-label',token.title);const enabled=p===s.turn&&s.types[p]==='human'&&s.roll&&options(p,s.roll).includes(i)&&!ctx.paused&&!s.done&&!moving;
    token.disabled=!enabled;if(enabled)token.classList.add('can-move');token.onclick=()=>move(i);board.append(token);
   });ctx.board.append(board);
   ctx.stats.textContent=(s.mode==='team'?'Team '+(s.turn%2===0?'A':'B')+' · ':'')+name(s.turn)+' ('+colors[s.turn]+') to play'+(s.roll?' · Rolled '+s.roll:'');ctx.controls.innerHTML='';
@@ -114,11 +119,11 @@ PPGames.ludo={init(ctx){
   const btn=document.createElement('button');btn.className='primary';
   btn.textContent=s.roll?'Select a glowing token':'🎲 Roll dice';
   btn.disabled=!!s.roll||s.done||moving||s.types[s.turn]==='computer';
-  btn.onclick=roll;ctx.controls.append(btn);
+  btn.onclick=roll;ctx.controls.prepend(btn);
   if(s.types[s.turn]==='computer'&&!s.done){
    const waiting=document.createElement('span');waiting.className='ai-waiting';waiting.textContent='🤖 '+name(s.turn)+' is thinking…';ctx.controls.append(waiting);
   }
   if(!moving)scheduleAI();
-  const tip=document.createElement('p');tip.className='tip';tip.textContent='Traditional cross-shaped Ludo board. Roll 6 to enter; choose a glowing token. Safe squares protect tokens. Reach the center with an exact roll.';ctx.controls.append(tip);
+  const tip=document.createElement('p');tip.className='tip';tip.textContent='Traditional cross-shaped Ludo board. Roll 6 to enter; choose a glowing token. Safe squares protect tokens. Reach the center with an exact roll; finishing a token earns another roll.';ctx.controls.append(tip);
  }render();return ()=>{clearTimeout(aiTimer);clearTimeout(moveTimer)};
 }};

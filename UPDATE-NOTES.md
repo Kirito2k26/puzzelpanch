@@ -1,0 +1,2 @@
+# Update notes
+Advertising scripts are intentionally absent from this release pending approval, consent configuration and explicit ad placements. Disable Auto Ads in the AdSense dashboard before any future integration. ads.txt is retained. Verify deployed URLs and Search Console after publishing. No claim of AdSense approval. Existing privacy disclosures may describe planned advertising; review before enabling ads.

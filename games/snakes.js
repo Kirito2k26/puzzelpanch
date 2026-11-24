@@ -34,12 +34,12 @@ PPGames.snakes={init(ctx){
  const xy=n=>{const row=Math.floor((n-1)/10),col=row%2===0?(n-1)%10:9-(n-1)%10;return [(col+.5)*10,(9-row+.5)*10]};
  function save(){ctx.save(s)}
  function render(){
-  ctx.board.innerHTML='';const wrap=document.createElement('div');wrap.className='snake-board',grid=document.createElement('div');grid.className='snake-grid';
+  ctx.board.innerHTML='';const wrap=document.createElement('div');wrap.className='snake-board';const grid=document.createElement('div');grid.className='snake-grid';
   for(let row=9;row>=0;row--)for(let col=0;col<10;col++){
-   const n=row*10+(row%2===0?col+1:10-col),cell=document.createElement('div');cell.className='snake-cell';cell.textContent=n;
+   const n=row*10+(row%2===0?col+1:10-col),cell=document.createElement('div');cell.className='snake-cell';cell.textContent=n;if(n===1||n===100){cell.classList.add(n===1?'snake-start':'snake-finish');const tag=document.createElement('b');tag.textContent=n===1?'START':'WIN';cell.append(tag);}
    if(jumps[n])cell.title=(jumps[n]>n?'Ladder to ':'Snake to ')+jumps[n];
    const players=s.pos.map((v,i)=>v===n?i:-1).filter(i=>i>=0);
-   if(players.length){const dots=document.createElement('span');dots.className='snake-pieces';players.forEach(i=>{const dot=document.createElement('i');dot.style.background=colors[i];dots.append(dot)});cell.append(dots)}grid.append(cell);
+   if(players.length){const dots=document.createElement('span');dots.className='snake-pieces';players.forEach(i=>{const dot=document.createElement('i');dot.style.background=colors[i];dot.textContent=i+1;dot.title=name(i);if(i===s.turn)dot.classList.add('active');dots.append(dot)});cell.append(dots)}grid.append(cell);
   }
   wrap.append(grid);
   const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');svg.setAttribute('viewBox','0 0 100 100');svg.setAttribute('class','snake-art');svg.setAttribute('aria-label','Illustrated snakes and ladders');
@@ -55,7 +55,7 @@ PPGames.snakes={init(ctx){
     svg.append(el('circle',{cx:x1,cy:y1,r:'1.7',fill:i%2?'#c94477':'#399c65',stroke:'#fff','stroke-width':'.4'}));
     for(const dx of [-.5,.5])svg.append(el('circle',{cx:x1+dx,cy:y1-.4,r:'.2',fill:'#fff'}));
    }
-  });wrap.append(svg);ctx.board.append(wrap);
+  });wrap.append(svg);const layout=document.createElement('div');layout.className='snake-layout';layout.append(wrap);const home=document.createElement('div');home.className='snake-home';home.innerHTML='<strong>HOME · Waiting to start</strong>';s.pos.forEach((v,i)=>{const slot=document.createElement('span');slot.className='snake-home-slot';slot.style.setProperty('--coin',colors[i]);slot.textContent=v===0?String(i+1):'–';slot.title=name(i);if(v===0)slot.classList.add('occupied');if(i===s.turn)slot.classList.add('active');home.append(slot)});layout.append(home);ctx.board.append(layout);
   ctx.stats.textContent='Turn: '+name(s.turn)+' · '+s.pos.map((v,i)=>['Red','Blue','Green','Yellow'][i]+': '+v).join(' · ');ctx.controls.innerHTML='';
   const started=s.pos.some(Boolean);
   const select=document.createElement('select');[2,3,4].forEach(n=>select.add(new Option(n+' players',n)));select.value=s.players;select.disabled=started;
@@ -73,7 +73,7 @@ PPGames.snakes={init(ctx){
   }
   ctx.controls.append(setup);
   const btn=document.createElement('button');btn.className='primary';btn.textContent='🎲 Roll dice';
-  btn.disabled=s.done||moving||s.types[s.turn]==='computer';btn.onclick=roll;ctx.controls.append(btn);
+  btn.disabled=s.done||moving||s.types[s.turn]==='computer';btn.onclick=roll;ctx.controls.prepend(btn);
   if(s.types[s.turn]==='computer'&&!s.done){const waiting=document.createElement('span');waiting.className='ai-waiting';waiting.textContent='🤖 '+name(s.turn)+' is rolling…';ctx.controls.append(waiting)}
   if(!moving)scheduleAI();
   const tip=document.createElement('p');tip.className='tip';tip.textContent='🪜 Climb illustrated ladders; 🐍 slide down snakes. Reach 100 with an exact roll.';ctx.controls.append(tip);
